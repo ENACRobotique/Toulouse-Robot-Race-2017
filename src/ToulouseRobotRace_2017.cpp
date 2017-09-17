@@ -7,10 +7,16 @@
 #include "lib_us.h"
 #include "commands.h"
 
+extern "C" {
+#include "median_filter.h"
+}
+
 SoftwareSerial serial(SRX, STX);
-unsigned long start_sonar_time, led_blink_time;
-uint16_t front_distance, left_distance, right_distance, up_distance, prev_front_distance;
+unsigned long start_sonar_time, led_blink_time, asserv_time, joker_time;
+int front_distance, left_distance, right_distance, up_distance;
+int prev_error;
 int led_state;
+median_t front_filter;
 
 void setup() {
     pinMode(LED,OUTPUT);
@@ -21,31 +27,46 @@ void setup() {
     serial.begin(115200);
     Wire.begin();
     led_state = 0;
+    mf_init(&front_filter, 4, 50);
 
-    start_sonar_time = millis();
     startRange(SONAR_FRONT);
     startRange(SONAR_LEFT);
     startRange(SONAR_RIGHT);
     startRange(SONAR_UP);
+    start_sonar_time = led_blink_time = asserv_time = millis();
     delay(80);
 
     serial.println("hello !");
 }
 
 void loop() {
+	if (millis() - start_sonar_time >= SONAR_PERIOD){
+		front_distance = (int) getRangeResult(SONAR_FRONT);
+		left_distance = (int) getRangeResult(SONAR_LEFT);
+		right_distance = (int) getRangeResult(SONAR_RIGHT);
+		up_distance = (int) getRangeResult(SONAR_UP);
 
-	if (millis() - start_sonar_time >= 300){
-		front_distance = getRangeResult(SONAR_FRONT);
-		left_distance = getRangeResult(SONAR_LEFT);
-		right_distance = getRangeResult(SONAR_RIGHT);
-		up_distance = getRangeResult(SONAR_UP);
+		if(front_distance == 0) {
+			front_distance = 250;
+		}
+		if(left_distance == 0) {
+			left_distance = 250;
+		}
+		if(right_distance == 0) {
+			right_distance = 250;
+		}
+		if(up_distance == 0) {
+			up_distance = 250;
+		}
 
-		start_sonar_time = millis();
+		mf_update(&front_filter, front_distance);
 
 		startRange(SONAR_FRONT);
 		startRange(SONAR_LEFT);
 		startRange(SONAR_RIGHT);
 		startRange(SONAR_UP);
+
+		start_sonar_time = millis();
 
 		serial.print(left_distance);
 		serial.print("\t");
@@ -56,39 +77,44 @@ void loop() {
 		serial.println(up_distance);
 	}
 
+	if(!joker_time && millis() - asserv_time > ASSERV_PERIOD)
+	{
+		int turn_amp = 0;
+		int speed = 0;
 
-	int turn_amp = 0;
+		int error = left_distance - right_distance;
+		int front_dist = mf_get(&front_filter);
 
-	int speed = 0;
+		speed = front_dist - 20;
+		turn_amp = KP * error - KD * (prev_error - error);
 
-	if(left_distance < 200 && right_distance < 200) {
-		turn_amp = (left_distance - right_distance)*2;
-		if(turn_amp < 80) {
+		prev_error = error;
+
+		//joker turn
+		if(front_dist < 40){
+			setSpeed(-80);
+			turn(-turn_amp*200);
+			joker_time = millis();
+			return;
+		}
+
+		//apply some limits and threshold
+		if(abs(turn_amp) < 50) {
 			turn_amp = 0;
 		}
-	}
-	else if(left_distance < 200 && right_distance > 200) {
-		turn_amp = -120;
-	}
-	else if(left_distance > 200 && right_distance < 200) {
-		turn_amp = 120;
+		speed = min(speed, 100);
+
+		setSpeed(speed);
+		turn(turn_amp);
 	}
 
-	if(prev_front_distance - front_distance > 20) {
-		speed = -100;
+	if(joker_time && millis() - joker_time > JOKER_TIME)
+	{
+		joker_time = 0;
 	}
-	else {
-		speed = min( (int) front_distance - 50, 100);
-	}
-	prev_front_distance = front_distance;
 
 
-
-	setSpeed(speed);
-	turn(turn_amp);
-
-
-	if(millis() - led_blink_time > 500) {
+	if(millis() - led_blink_time > BLINK_PERIOD) {
 		led_state ^= 1;
 		digitalWrite(LED, led_state);
 		led_blink_time = millis();

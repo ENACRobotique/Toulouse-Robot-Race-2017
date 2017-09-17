@@ -26,5 +26,13 @@
 
 #define MAX_SPEED 180
 
+#define KP 3
+#define KD 2
+
+#define SONAR_PERIOD 70
+#define ASSERV_PERIOD 200
+#define BLINK_PERIOD 500
+
+#define JOKER_TIME 1500
 
 #endif  //__PARAMS_H__
