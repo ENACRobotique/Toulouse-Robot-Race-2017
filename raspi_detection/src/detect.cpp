@@ -22,7 +22,7 @@ using namespace std;
 
 #include <sys/resource.h>
 
-#include <yaml-cpp/yaml.h>
+//#include <yaml-cpp/yaml.h>
 
 bool allowed=true;
 void sig_stop(int a)
@@ -62,10 +62,13 @@ int main(int argc,char **argv) {
 	if(argc>=3){
 		record_name=argv[2];
 	}
-
+	cout << "Open VideoCapture..." << endl;
 	VideoCapture cap(read_name); // open the default camera
-    if(!cap.isOpened())  // check if we succeeded
+    if(!cap.isOpened()) {  // check if we succeeded
+	cout << "can't open video" << endl;
         return -1;
+    }
+    cout << "video open !" << endl;
     Mat edges,frame;
     cap.read(frame);
 	VideoWriter rec;

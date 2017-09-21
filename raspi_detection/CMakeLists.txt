@@ -26,7 +26,7 @@ add_executable(detect_line
 
 target_link_libraries(detect_line 
 	${OpenCV_LIBS}
-	yaml-cpp
+#	yaml-cpp
 )
 
 add_definitions(-DDEBUG)
