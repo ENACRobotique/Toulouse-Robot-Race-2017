@@ -14,7 +14,7 @@ find_package(raspicam REQUIRED)
 
 INCLUDE(FindPkgConfig)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11 -march=native -O2")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11 -march=native -O2 -lwiringPi")
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(

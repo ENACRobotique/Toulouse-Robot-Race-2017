@@ -11,6 +11,7 @@
 #include <sstream>
 #include <math.h>
 #include <unistd.h>
+#include <cstdint>
 #include <algorithm>
 #include <ctime>
 #include <raspicam/raspicam_cv.h>
@@ -18,11 +19,15 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+
+#include <wiringSerial.h>
+
 using namespace cv;
 using namespace std;
 
 #include <sys/resource.h>
 
+#define CLAMP(m, n, M) min(max((m), (n)), (M))
 
 bool allowed=true;
 void sig_stop(int a)
@@ -53,14 +58,23 @@ bool is_line(vector<Point>  contour,Mat image,RotatedRect & res){
 
 
 int main(int argc,char **argv) {
+    char debug_328p[200];
+    int debug_328p_index = 0;
     char* read_name;
     char* record_name=NULL;
     bool pause=false;
+    int serial_fd;
     if(argc>=2){
         read_name=argv[1];
     }
     if(argc>=3){
         record_name=argv[2];
+    }
+    
+    serial_fd = serialOpen("/dev/ttyAMA0", 115200);
+    if(serial_fd == -1) {
+        cout << "Can't open /dev/ttyAMA0" << endl;
+        return -1;
     }
 
 	//VideoCapture cap(read_name); // open the default camera
@@ -79,13 +93,13 @@ int main(int argc,char **argv) {
     sleep(1);
 
 
-    Mat edges,frame;
+    Mat edges,frame_orig;
     Camera.grab();
-    Camera.retrieve (frame);
+    Camera.retrieve (frame_orig);
     VideoWriter rec;
     if(record_name!=NULL){
     rec.open(record_name,CV_FOURCC('M','J','P','G'),
-            30.,Size(frame.size[1],frame.size[0]));
+            30.,Size(frame_orig.size[1],frame_orig.size[0]));
     if(!rec.isOpened())  // check if we succeeded
         return -1;
     }
@@ -108,13 +122,13 @@ int main(int argc,char **argv) {
 
     while(Camera.isOpened())
     {
-        cout << "nouveau tour de boucle, pause=" << pause << endl;
+        //cout << "nouveau tour de boucle, pause=" << pause << endl;
         if(!pause){
             if(!Camera.grab())
 		    break;
-            Camera.retrieve (frame);
+            Camera.retrieve (frame_orig);
         }
-        imshow("frame", frame);
+        imshow("frame", frame_orig);
        /* 
 	char key=waitKey(30);
         if(key=='q' || key==27) {
@@ -128,6 +142,8 @@ int main(int argc,char **argv) {
         */
 	
 	//traitement brut (filtrage)
+	Rect roi(0,133,640, 298);
+	Mat frame = frame_orig(roi);	
         cvtColor(frame, edges, CV_BGR2GRAY);
         GaussianBlur(edges, edges, Size(size*2+1,size*2+1), sigma, sigma);
         Canny(edges, edges, minCanny, maxCanny, 3);
@@ -202,7 +218,26 @@ int main(int argc,char **argv) {
 			else
 				x_sol=H/        tan((alpha+theta_y)*M_PI/180);//inversion c'est confondant mais normal
 			double y_sol=-x_sol*tan(       theta_x *M_PI/180);
-			cout<<"pos_s:"<<x_sol<<":"<<y_sol<<endl;
+			//cout<<"pos_s:"<<x_sol<<":"<<y_sol<<endl;
+			//cout << "theta_x =" << theta_x << "  angle=" << angle_line << endl;
+
+			uint8_t x_to_send = (int) CLAMP(-50.0, theta_x, 50.0) + 50;
+			uint8_t angle_to_send = (int) CLAMP(0.0, angle_line, 180.0);
+			serialPutchar(serial_fd, x_to_send);
+			serialPutchar(serial_fd, angle_to_send);
+
+			while(serialDataAvail(serial_fd)) {
+				//cout << "receive char" << endl;
+				char c = (char) serialGetchar(serial_fd);
+				debug_328p[debug_328p_index] = c;
+				debug_328p_index++;
+				if(c == '\n') {
+				    cout << debug_328p << endl;
+				    debug_328p_index = 0;
+				}
+				//cout << c;
+				//cout.flush();
+			}
 
         }
         cout<<"----------"<<endl;
@@ -228,6 +263,7 @@ int main(int argc,char **argv) {
     cout<<"maxCanny:"<<maxCanny<<endl;
 
     Camera.release();
+    serialClose(serial_fd);
     return 0;
 
 }
