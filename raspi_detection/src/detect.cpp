@@ -135,10 +135,10 @@ int main(int argc,char **argv) {
 		}
         //les plus en avant sont les plus utiles
         sort(line_filtred.begin(), line_filtred.end(), comparaison_ligne);
-
+/*
         for( int i = 0; i< line_filtred.size(); i++ ){
 			cout<<line_filtred[i].center.x<<":"<<line_filtred[i].center.y<<"="<<line_filtred[i].angle<<endl;
-		}
+		}*/
 
         line_filtred.resize((line_filtred.size()+1)/2);//on vire les lointains
 
@@ -156,18 +156,30 @@ int main(int argc,char **argv) {
 			centre_line.x/= line_filtred.size();
 			centre_line.y/= line_filtred.size();
 			angle_line   /= line_filtred.size();
-			cout<<centre_line.x<<":"<<centre_line.y<<"="<<angle_line<<endl;
-			//TODO faire une vrai reprojection Cam => sol
+			//cout<<centre_line.x<<":"<<centre_line.y<<"="<<angle_line<<endl;
+
 			Point pt_dir1=Point((int)round(centre_line.x + 100 * cos(angle_line*M_PI/180) ),
 		                        (int)round(centre_line.y + 100 * sin(angle_line*M_PI/180) ));
 			Point pt_dir2=Point((int)round(centre_line.x - 100 * cos(angle_line*M_PI/180) ),
 		                        (int)round(centre_line.y - 100 * sin(angle_line*M_PI/180) ));
-
 			line(result,pt_dir1,pt_dir2,Scalar(0,256,0),5);
 
-        }
+			//angle d'ouverture de 62.2deg suivant x et 48.8 suivant y
+			double theta_x=(centre_line.x-frame.size[1]/2)*62.2/frame.size[1];
+			double theta_y=(centre_line.y-frame.size[0]/2)*48.8/frame.size[0];
+			//projection au sol
+			double H=.32; //m
+			double alpha=15; //angle vers le sol de la caméra (deg)
+			double x_sol;
+			if(abs(alpha+theta_y)<1e-2)
+				x_sol=5;
+			else
+				x_sol=H/        tan((alpha+theta_y)*M_PI/180);//inversion c'est confondant mais normal
+			double y_sol=-x_sol*tan(       theta_x *M_PI/180);
+			cout<<"pos_s:"<<x_sol<<":"<<y_sol<<endl;
 
-        cout<<"------------------"<<contours.size()<<":"<<line_filtred.size()<<endl;
+        }
+        cout<<"----------"<<endl;
         imshow("frame", result);
         imshow("edges", edges);
         imshow( "Contours", drawing );
