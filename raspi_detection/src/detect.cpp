@@ -12,7 +12,8 @@
 #include <math.h>
 #include <unistd.h>
 #include <algorithm>
-
+#include <ctime>
+#include <raspicam/raspicam_cv.h>
 // CV
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -22,7 +23,6 @@ using namespace std;
 
 #include <sys/resource.h>
 
-#include <yaml-cpp/yaml.h>
 
 bool allowed=true;
 void sig_stop(int a)
@@ -53,28 +53,42 @@ bool is_line(vector<Point>  contour,Mat image,RotatedRect & res){
 
 
 int main(int argc,char **argv) {
-	char* read_name;
-	char* record_name=NULL;
-	bool pause=false;
-	if(argc>=2){
-		read_name=argv[1];
-	}
-	if(argc>=3){
-		record_name=argv[2];
-	}
+    char* read_name;
+    char* record_name=NULL;
+    bool pause=false;
+    if(argc>=2){
+        read_name=argv[1];
+    }
+    if(argc>=3){
+        record_name=argv[2];
+    }
 
-	VideoCapture cap(read_name); // open the default camera
-    if(!cap.isOpened())  // check if we succeeded
-        return -1;
+	//VideoCapture cap(read_name); // open the default camera
+    raspicam::RaspiCam_Cv Camera;
+    //Camera.set( CV_CAP_PROP_FORMAT, CV_8UC1 );
+    Camera.set(CV_CAP_PROP_FORMAT, CV_8UC3 );
+    Camera.set(CV_CAP_PROP_FRAME_WIDTH, 640);
+    Camera.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+    Camera.set(CV_CAP_PROP_FPS, 30);
+    cout<<"Opening camera..."<<endl;
+    if(!Camera.open()) {
+        cerr << "Error opening camera" << endl;
+	return -1;
+    }
+    cout << "sleeping for 1 seconds..." << endl;
+    sleep(1);
+
+
     Mat edges,frame;
-    cap.read(frame);
-	VideoWriter rec;
-	if(record_name!=NULL){
-		rec.open(record_name,CV_FOURCC('M','J','P','G'),
-			            30.,Size(frame.size[1],frame.size[0]));
-		if(!rec.isOpened())  // check if we succeeded
-		        return -1;
-	}
+    Camera.grab();
+    Camera.retrieve (frame);
+    VideoWriter rec;
+    if(record_name!=NULL){
+    rec.open(record_name,CV_FOURCC('M','J','P','G'),
+            30.,Size(frame.size[1],frame.size[0]));
+    if(!rec.isOpened())  // check if we succeeded
+        return -1;
+    }
 
     namedWindow("frame",CV_WINDOW_AUTOSIZE);
     namedWindow("edges",CV_WINDOW_AUTOSIZE);
@@ -92,13 +106,28 @@ int main(int argc,char **argv) {
     createTrackbar( "canny:max	       ", "edges", &maxCanny, 1000);
     createTrackbar( "ferm:nb it	       ", "edges", &ferm, 10);
 
-    while(cap.isOpened())
+    while(Camera.isOpened())
     {
+        cout << "nouveau tour de boucle, pause=" << pause << endl;
         if(!pause){
-        	if(!cap.read(frame))// get a new frame from camera
-        		break;
+            if(!Camera.grab())
+		    break;
+            Camera.retrieve (frame);
         }
-        //traitement brut (filtrage)
+        imshow("frame", frame);
+       /* 
+	char key=waitKey(30);
+        if(key=='q' || key==27) {
+        	break;
+        }
+        else if(key==' '){
+        	pause^=true;
+        }
+	
+	continue;
+        */
+	
+	//traitement brut (filtrage)
         cvtColor(frame, edges, CV_BGR2GRAY);
         GaussianBlur(edges, edges, Size(size*2+1,size*2+1), sigma, sigma);
         Canny(edges, edges, minCanny, maxCanny, 3);
@@ -198,7 +227,7 @@ int main(int argc,char **argv) {
     cout<<"minCanny:"<<minCanny<<endl;
     cout<<"maxCanny:"<<maxCanny<<endl;
 
-    cap.release();
+    Camera.release();
     return 0;
 
 }
