@@ -24,7 +24,12 @@
 #define SONAR_LEFT 0x77
 #define SONAR_UP 0x70
 
-#define MAX_SPEED 180
+#define MAX_SPEED 100
+
+#define KTX -16
+#define KTA -5
+#define KS 0.5
+
 
 #define KP 3
 #define KD 2
@@ -32,6 +37,7 @@
 #define SONAR_PERIOD 70
 #define ASSERV_PERIOD 200
 #define BLINK_PERIOD 500
+#define MAX_COMMAND_TIME 2000
 
 #define JOKER_TIME 1500
 
