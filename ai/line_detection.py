@@ -5,12 +5,12 @@ import skvideo.io  # used to import video files, as cv2 didn't work on my comput
 # Threshold
 THRESHOLD_LEVEL = 140 # 0-255
 
-# MIN area contour
-MIN_AREA_CONTOUR = 30
+# Contour noise reduction
+MIN_PERIMETER = 50
 
 #Canny parameters
 CANNY_MINVAL = 10
-CANNY_MAXVAL = 200
+CANNY_MAXVAL = 180
 
 # Hough line parameters
 DEG_ACCURACY = 1  # the accuracy of lines direction
@@ -25,7 +25,7 @@ THETA_CLUSTER_INTERVAL = 15 * np.pi / 180   # (rad) use to compare the direction
 img_colored = cv2.imread('plop.png')
 
 # Video file
-video = skvideo.io.vreader("out6.avi")
+video = skvideo.io.vreader("out10.avi")
 
 # Live webcam
 #cv2.VideoCapture(-1)
@@ -33,13 +33,13 @@ video = skvideo.io.vreader("out6.avi")
 for img_colored in video:  # loop on each frame
 
     #crop image (avoid wing and unnecessary info)
-    img_colored = img_colored[140:400, :]
+    img_colored = img_colored[150:420, :]
 
     # Convert to image to a gray image
     gray = cv2.cvtColor(img_colored, cv2.COLOR_BGR2GRAY)
 
     # Blur the image to decrease noise
-    img = cv2.GaussianBlur(gray, (5,5), 0)
+    img = cv2.GaussianBlur(gray, (5, 5), 0)
 
     # Canny (detect edges)
     img = cv2.Canny(img, CANNY_MINVAL, CANNY_MAXVAL)
@@ -48,11 +48,14 @@ for img_colored in video:  # loop on each frame
     #Find contour and fill low area contours
     img, contours,hierarchy = cv2.findContours(img, 1, 2)
     for cnt in contours:
-        M = cv2.moments(cnt)
-        epsilon = 0.1*cv2.arcLength(cnt,True)
-        cnt = cv2.approxPolyDP(cnt,epsilon,True)
-        if M['m00'] < MIN_AREA_CONTOUR :
+        perimeters = cv2.arcLength(cnt, False)
+        if perimeters < MIN_PERIMETER:
             cv2.drawContours(img, [cnt], 0, color=(0, 0, 0), thickness=-1)
+        # M = cv2.moments(cnt)
+        # epsilon = 0.1*cv2.arcLength(cnt,True)
+        # cnt = cv2.approxPolyDP(cnt,epsilon,True)
+        # if M['m00'] < MIN_AREA_CONTOUR :
+        #     cv2.drawContours(img, [cnt], 0, color=(0, 0, 0), thickness=-1)
 
 
 
