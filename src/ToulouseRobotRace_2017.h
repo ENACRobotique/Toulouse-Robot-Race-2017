@@ -15,6 +15,8 @@
 
 //add your function definitions for the project ToulouseRobotRace_2017 here
 
+#define CLAMP(m, n, M) min(max((m), (n)), (M))
+
 
 
 

@@ -11,12 +11,27 @@ extern "C" {
 #include "median_filter.h"
 }
 
+//#define SONAR
+#define VIDEO
+
 SoftwareSerial serial(SRX, STX);
-unsigned long start_sonar_time, led_blink_time, asserv_time, joker_time;
+unsigned long start_sonar_time, led_blink_time, asserv_time, joker_time, last_command_time;
 int front_distance, left_distance, right_distance, up_distance;
 int prev_error;
 int led_state;
 median_t front_filter;
+
+int s, t, state;
+
+enum {
+	AV,
+	AV_G,
+	AV_D,
+	N,
+	AR,
+	AR_G,
+	AR_D
+};
 
 void setup() {
     pinMode(LED,OUTPUT);
@@ -24,22 +39,29 @@ void setup() {
     pinMode(MOT_PWM,OUTPUT);
     pinMode(DIR_A, OUTPUT);
     pinMode(DIR_B, OUTPUT);
-    serial.begin(115200);
-    Wire.begin();
     led_state = 0;
-    mf_init(&front_filter, 4, 50);
+    led_blink_time = last_command_time = millis();
+    serial.begin(115200);
 
+#ifdef SONAR
+    start_sonar_time = asserv_time = millis();
+    Wire.begin();
+    mf_init(&front_filter, 4, 50);//
     startRange(SONAR_FRONT);
     startRange(SONAR_LEFT);
     startRange(SONAR_RIGHT);
     startRange(SONAR_UP);
-    start_sonar_time = led_blink_time = asserv_time = millis();
-    delay(80);
+        delay(80);
+#endif
+
 
     serial.println("hello !");
+    s = t = 0;
+    state = N;
 }
 
 void loop() {
+#ifdef SONAR
 	if (millis() - start_sonar_time >= SONAR_PERIOD){
 		front_distance = (int) getRangeResult(SONAR_FRONT);
 		left_distance = (int) getRangeResult(SONAR_LEFT);
@@ -112,7 +134,37 @@ void loop() {
 	{
 		joker_time = 0;
 	}
+#endif
 
+
+	if(serial.available() >= 2)
+	{
+		int x = (int)serial.read() - 50;		//offset used for the uart communication
+		int angle = (int)serial.read() - 90;	//set zero degrees in front of the robot
+		serial.print("info : x =");
+		serial.print(x);
+		serial.print("  angle=");
+		serial.println(angle);
+
+		int turn_amp = KTX * x + KTA * angle;
+		turn_amp = CLAMP(-255, turn_amp, 255);
+		int speed = KS * (300-abs(turn_amp));
+		speed = CLAMP(0, speed, 100);
+
+		serial.print("turn :");
+		serial.print(turn_amp);
+		serial.print("  speed :");
+		serial.println(speed);
+
+		turn(turn_amp);
+		setSpeed(speed);
+		last_command_time = millis();
+	}
+
+	if(millis() - last_command_time > MAX_COMMAND_TIME) {
+		turn(0);
+		setSpeed(0);
+	}
 
 	if(millis() - led_blink_time > BLINK_PERIOD) {
 		led_state ^= 1;
