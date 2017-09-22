@@ -19,7 +19,11 @@ unsigned long start_sonar_time, led_blink_time, asserv_time, joker_time, last_co
 int front_distance, left_distance, right_distance, up_distance;
 int prev_error;
 int led_state;
+int position_radar;
 median_t front_filter;
+int turn_amp, speed;
+float alpha;
+int angle_camera, x_camera;
 
 int s, t, state;
 
@@ -42,17 +46,16 @@ void setup() {
     led_state = 0;
     led_blink_time = last_command_time = millis();
     serial.begin(115200);
-
-#ifdef SONAR
+    alpha = 1;
     start_sonar_time = asserv_time = millis();
+    angle_camera = x_camera = 0;
     Wire.begin();
     mf_init(&front_filter, 4, 50);//
     startRange(SONAR_FRONT);
     startRange(SONAR_LEFT);
     startRange(SONAR_RIGHT);
     startRange(SONAR_UP);
-        delay(80);
-#endif
+    delay(80);
 
 
     serial.println("hello !");
@@ -61,7 +64,6 @@ void setup() {
 }
 
 void loop() {
-#ifdef SONAR
 	if (millis() - start_sonar_time >= SONAR_PERIOD){
 		front_distance = (int) getRangeResult(SONAR_FRONT);
 		left_distance = (int) getRangeResult(SONAR_LEFT);
@@ -97,8 +99,13 @@ void loop() {
 		serial.print(right_distance);
 		serial.print("\t");
 		serial.println(up_distance);
-	}
 
+		position_radar = (100 * (left_distance - right_distance)) / (left_distance + right_distance);
+		serial.print("position_radar =");
+		serial.println(position_radar);
+//		alpha = min(alpha + 0.1, 1);
+	}
+/*
 	if(!joker_time && millis() - asserv_time > ASSERV_PERIOD)
 	{
 		int turn_amp = 0;
@@ -112,13 +119,7 @@ void loop() {
 
 		prev_error = error;
 
-		//joker turn
-		if(front_dist < 40){
-			setSpeed(-80);
-			turn(-turn_amp*200);
-			joker_time = millis();
-			return;
-		}
+
 
 		//apply some limits and threshold
 		if(abs(turn_amp) < 50) {
@@ -129,42 +130,57 @@ void loop() {
 		setSpeed(speed);
 		turn(turn_amp);
 	}
-
-	if(joker_time && millis() - joker_time > JOKER_TIME)
-	{
-		joker_time = 0;
-	}
-#endif
+*/
 
 
 	if(serial.available() >= 2)
 	{
-		int x = (int)serial.read() - 50;		//offset used for the uart communication
-		int angle = (int)serial.read() - 90;	//set zero degrees in front of the robot
-		serial.print("info : x =");
-		serial.print(x);
+//		alpha = 0;
+		x_camera = (int)serial.read() - 50;		//offset used for the uart communication
+		angle_camera = (int)serial.read() - 90;	//set zero degrees in front of the robot
+		serial.print("info : position_radar =");
+		serial.print(position_radar);
 		serial.print("  angle=");
-		serial.println(angle);
+		serial.println(angle_camera);
 
-		int turn_amp = KTX * x + KTA * angle;
+//		last_command_time = millis();
+	}
+
+	//joker turn
+	if(mf_get(&front_filter) < 40){
+		setSpeed(-50);
+		turn(-turn_amp*200);
+		joker_time = millis();
+		return;
+	}
+
+
+	if(!joker_time) {
+		turn_amp = alpha * KTR * position_radar + (1-alpha) * KTA * angle_camera;
 		turn_amp = CLAMP(-255, turn_amp, 255);
-		int speed = KS * (300-abs(turn_amp));
+		speed = KS * (300-abs(turn_amp));
 		speed = CLAMP(0, speed, 100);
 
 		serial.print("turn :");
 		serial.print(turn_amp);
 		serial.print("  speed :");
 		serial.println(speed);
-
 		turn(turn_amp);
 		setSpeed(speed);
-		last_command_time = millis();
 	}
 
-	if(millis() - last_command_time > MAX_COMMAND_TIME) {
+	if(joker_time && millis() - joker_time > JOKER_TIME)
+	{
+		joker_time = 0;
+	}
+
+
+
+	/*if(millis() - last_command_time > MAX_COMMAND_TIME) {
 		turn(0);
 		setSpeed(0);
-	}
+	}*/
+
 
 	if(millis() - led_blink_time > BLINK_PERIOD) {
 		led_state ^= 1;

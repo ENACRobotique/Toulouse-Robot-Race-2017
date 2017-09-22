@@ -24,10 +24,11 @@
 #define SONAR_LEFT 0x77
 #define SONAR_UP 0x70
 
-#define MAX_SPEED 100
+#define MAX_SPEED 75
 
 #define KTX -16
-#define KTA -5
+#define KTR 12
+#define KTA -4
 #define KS 0.5
 
 
