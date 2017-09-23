@@ -26,6 +26,7 @@
 
 #define MAX_SPEED 75
 
+#define K_INTENSITY -65
 #define KTX -16
 #define KTR 12
 #define KTA -4
@@ -35,11 +36,12 @@
 #define KP 3
 #define KD 2
 
+#define INTENSITY_PERIOD 10
 #define SONAR_PERIOD 70
-#define ASSERV_PERIOD 200
+#define ASSERV_PERIOD 50
 #define BLINK_PERIOD 500
 #define MAX_COMMAND_TIME 2000
 
-#define JOKER_TIME 1500
+#define INTENSITY_LIMIT 4000
 
 #endif  //__PARAMS_H__

@@ -18,7 +18,17 @@
 #define CLAMP(m, n, M) min(max((m), (n)), (M))
 
 
+typedef enum {
+	BLANC,
+	NOIR,
+	PARQUET
+}FloorNature;
 
+typedef enum {
+	LEFT,
+	CENTER,
+	RIGHT
+}RobotPosition;
 
 //Do not add code below this line
 #endif /* _ToulouseRobotRace_2017_H_ */

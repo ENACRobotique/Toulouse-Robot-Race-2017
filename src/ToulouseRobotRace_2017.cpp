@@ -6,37 +6,27 @@
 #include "Wire.h"
 #include "lib_us.h"
 #include "commands.h"
+#include "lib_intensity_cny70.h"
 
 extern "C" {
 #include "median_filter.h"
 }
 
-//#define SONAR
-#define VIDEO
-
 SoftwareSerial serial(SRX, STX);
-unsigned long start_sonar_time, led_blink_time, asserv_time, joker_time, last_command_time;
+
+unsigned long start_sonar_time, led_blink_time, asserv_time, time_intensity;
 int front_distance, left_distance, right_distance, up_distance;
 int prev_error;
 int led_state;
 int position_radar;
 median_t front_filter;
 int turn_amp, speed;
-float alpha;
-int angle_camera, x_camera;
+FloorNature floor_nature[8];
+median_t intensity[8];
+RobotPosition robotPosition;
 
-int s, t, state;
-
-enum {
-	AV,
-	AV_G,
-	AV_D,
-	N,
-	AR,
-	AR_G,
-	AR_D
-};
-
+//int offsets[8] = {3493,3266,3955,3674,3238,3632,3697,4259};
+int offsets[8] = {255,28,716,436,0,394,459,1021};
 void setup() {
     pinMode(LED,OUTPUT);
     pinMode(MOT_DIR,OUTPUT);
@@ -44,12 +34,17 @@ void setup() {
     pinMode(DIR_A, OUTPUT);
     pinMode(DIR_B, OUTPUT);
     led_state = 0;
-    led_blink_time = last_command_time = millis();
     serial.begin(115200);
-    alpha = 1;
-    start_sonar_time = asserv_time = millis();
-    angle_camera = x_camera = 0;
+    start_sonar_time = asserv_time = led_blink_time = time_intensity = millis();
     Wire.begin();
+
+    for(int i=0; i<8; i++) {
+		floor_nature[i] = BLANC;
+		mf_init(&(intensity[i]), 5, 3000);//
+	}
+
+    robotPosition = CENTER;
+
     mf_init(&front_filter, 4, 50);//
     startRange(SONAR_FRONT);
     startRange(SONAR_LEFT);
@@ -57,13 +52,31 @@ void setup() {
     startRange(SONAR_UP);
     delay(80);
 
-
     serial.println("hello !");
-    s = t = 0;
-    state = N;
 }
 
 void loop() {
+	if(true || millis() - time_intensity > INTENSITY_PERIOD) {
+		for(int i=0; i<8; i++) {
+			int intensity_meas = (int) getIntensity(i) - offsets[i];
+			mf_update(&(intensity[i]), intensity_meas);
+			if(mf_get(&(intensity[i])) > INTENSITY_LIMIT) {
+				floor_nature[i] = NOIR;
+			}
+			else {
+				floor_nature[i] = BLANC;
+			}
+
+			serial.print(i);
+			serial.print(": ");
+			serial.print(mf_get(&(intensity[i])));
+			serial.print("  floor:");
+			serial.println(floor_nature[i]);
+		}
+
+		time_intensity = millis();
+	}
+
 	if (millis() - start_sonar_time >= SONAR_PERIOD){
 		front_distance = (int) getRangeResult(SONAR_FRONT);
 		left_distance = (int) getRangeResult(SONAR_LEFT);
@@ -92,95 +105,68 @@ void loop() {
 
 		start_sonar_time = millis();
 
-		serial.print(left_distance);
-		serial.print("\t");
-		serial.print(front_distance);
-		serial.print("\t");
-		serial.print(right_distance);
-		serial.print("\t");
-		serial.println(up_distance);
+//		serial.print(left_distance);
+//		serial.print("\t");
+//		serial.print(front_distance);
+//		serial.print("\t");
+//		serial.print(right_distance);
+//		serial.print("\t");
+//		serial.println(up_distance);
 
 		position_radar = (100 * (left_distance - right_distance)) / (left_distance + right_distance);
-		serial.print("position_radar =");
-		serial.println(position_radar);
-//		alpha = min(alpha + 0.1, 1);
+		//serial.print("position_radar =");
+		//serial.println(position_radar);
 	}
-/*
-	if(!joker_time && millis() - asserv_time > ASSERV_PERIOD)
-	{
-		int turn_amp = 0;
-		int speed = 0;
-
-		int error = left_distance - right_distance;
-		int front_dist = mf_get(&front_filter);
-
-		speed = front_dist - 20;
-		turn_amp = KP * error - KD * (prev_error - error);
-
-		prev_error = error;
 
 
 
-		//apply some limits and threshold
-		if(abs(turn_amp) < 50) {
-			turn_amp = 0;
+	bool isThereWhite;
+	for(int i=0; i<8; i++) {
+		if(floor_nature[i] == BLANC) {
+			isThereWhite = true;
+			break;
 		}
-		speed = min(speed, 100);
-
-		setSpeed(speed);
-		turn(turn_amp);
 	}
-*/
 
+	if(isThereWhite) {
+		int intensity_balance = floor_nature[0] + floor_nature[1] + floor_nature[2] + floor_nature[3]
+					          - floor_nature[4] - floor_nature[5] - floor_nature[6] - floor_nature[7];
 
-	if(serial.available() >= 2)
-	{
-//		alpha = 0;
-		x_camera = (int)serial.read() - 50;		//offset used for the uart communication
-		angle_camera = (int)serial.read() - 90;	//set zero degrees in front of the robot
-		serial.print("info : position_radar =");
-		serial.print(position_radar);
-		serial.print("  angle=");
-		serial.println(angle_camera);
+		if(intensity_balance > 0) {
+			robotPosition = LEFT;
+		}
+		if(intensity_balance > 0) {
+			robotPosition = RIGHT;
+		}
 
-//		last_command_time = millis();
+		turn_amp = intensity_balance * K_INTENSITY;
 	}
+	else {
+		if(robotPosition == LEFT) {
+			turn_amp = -255;
+		}
+		else if(robotPosition == RIGHT) {
+			turn_amp = 255;
+		}
+	}
+
+
+
+
+	turn(turn_amp);
+	setSpeed(50);
+
+
 
 	//joker turn
-	if(mf_get(&front_filter) < 40){
-		setSpeed(-50);
-		turn(-turn_amp*200);
-		joker_time = millis();
-		return;
-	}
+//	if(mf_get(&front_filter) < 40){
+//		setSpeed(-50);
+//		turn(-turn_amp*200);
+//		joker_time = millis();
+//		return;
+//	}
 
-
-	if(!joker_time) {
-		turn_amp = alpha * KTR * position_radar + (1-alpha) * KTA * angle_camera;
-		turn_amp = CLAMP(-255, turn_amp, 255);
-		speed = KS * (300-abs(turn_amp));
-		speed = CLAMP(0, speed, 100);
-
-		serial.print("turn :");
-		serial.print(turn_amp);
-		serial.print("  speed :");
-		serial.println(speed);
-		turn(turn_amp);
-		setSpeed(speed);
-	}
-
-	if(joker_time && millis() - joker_time > JOKER_TIME)
-	{
-		joker_time = 0;
-	}
-
-
-
-	/*if(millis() - last_command_time > MAX_COMMAND_TIME) {
-		turn(0);
-		setSpeed(0);
-	}*/
-
+	//setSpeed(50);
 
 	if(millis() - led_blink_time > BLINK_PERIOD) {
 		led_state ^= 1;
