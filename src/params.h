@@ -42,6 +42,9 @@
 #define BLINK_PERIOD 500
 #define MAX_COMMAND_TIME 2000
 
-#define INTENSITY_LIMIT 4000
+#define GRAB_TIME 500
+#define ARCH_DELAY 30000
+
+#define INTENSITY_LIMIT 5000
 
 #endif  //__PARAMS_H__

@@ -19,16 +19,41 @@
 
 
 typedef enum {
-	BLANC,
-	NOIR,
-	PARQUET
+	NOIR = 0,
+	BLANC = 1,
 }FloorNature;
 
 typedef enum {
 	LEFT,
+	LINE_LL,
+	LINE_L,
+	CENTER_L,
 	CENTER,
+	CENTER_R,
+	LINE_R,
+	LINE_RR,
 	RIGHT
 }RobotPosition;
+
+enum {
+	GRAB_LEFT,
+	GRAB_RIGHT
+};
+
+#define TURN_LEFT 255
+#define TURN_RIGHT -255
+
+char* stateName[9] = {
+	"LEFT",
+	"LINE_LL",
+	"LINE_L",
+	"CENTER_L",
+	"CENTER",
+	"CENTER_R",
+	"LINE_R",
+	"LINE_RR",
+	"RIGHT"
+};
 
 //Do not add code below this line
 #endif /* _ToulouseRobotRace_2017_H_ */
